@@ -12,8 +12,16 @@ endTime=as.Date("2010/01/01")
 splits=252
 rTimeInHoldout=252
 
+#Utilities
+m=function(filename)
+	return(paste(sep='/','ForMatlab',filename))
+i=function(filename)
+	return(paste(sep='/','Intermediate',filename))
+r=function(filename)
+	return(paste(sep='/','RawData',filename))
+
 #Read Stuff
-data=read.csv('SP500.csv',header=TRUE,na.strings=c('B','C'),stringsAsFactors=FALSE)
+data=read.csv(r('SP500.csv'),header=TRUE,na.strings=c('B','C'),stringsAsFactors=FALSE)
 data$DATE=as.Date(as.character(data$DATE),'%Y%m%d')
 
 #Screen Dates
@@ -59,6 +67,7 @@ cusip=unique(data$CUSIP)
 numStocks=length(cusip)
 trainReturnsMatrix=matrix(data$RET,ncol=numStocks)
 trainReturnsMatrix[is.na(trainReturnsMatrix)]=0
+returns=apply(trainReturnsMatrix,2,mymean)
 holdoutReturnsMatrix=matrix(holdout$RET,ncol=numStocks)
 holdoutReturnsMatrix[is.na(holdoutReturnsMatrix)]=0
 covar=splits*cov(trainReturnsMatrix)
@@ -66,39 +75,36 @@ rownames(covar)=cusip
 colnames(covar)=cusip
 
 #Save the data
-save(file='SP500',list=ls())
+save(file=i('SP500'),list=ls())
 
 #Load the data
-load('SP500')
+load(i('SP500'))
 
 #Set Up Optimization for Matlab
 #mymean finds geometric return over a year from daily returns
 mymean=function(x,na.rm=TRUE){
 	return(exp(splits*mean(log(1+x),na.rm=na.rm))-1)
 }
-returns=apply(trainReturnsMatrix,2,mymean)
 A=rbind(-returns,-diag(numStocks),diag(numStocks))
 Aeq=rep(1,numStocks)
 B=c(rep(0,numStocks+1),rep(1,numStocks))
 Beq=1
 Start=rep(0,numStocks)
 Start[1]=1
-write.table(sep=',',A,'A.csv',col.names=FALSE,row.names=FALSE)
-write.table(sep=',',B,'B.csv',col.names=FALSE,row.names=FALSE)
-write.table(sep=',',t(Aeq),'Aeq.csv',col.names=FALSE,row.names=FALSE)
-write.table(sep=',',Beq,'Beq.csv',col.names=FALSE,row.names=FALSE)
-write.table(sep=',',covar,'Cov.csv',col.names=FALSE,row.names=FALSE)
-write.table(sep=',',Start,'Start.csv',col.names=FALSE,row.names=FALSE)
+write.table(sep=',',A,m('A.csv'),col.names=FALSE,row.names=FALSE)
+write.table(sep=',',B,m('B.csv'),col.names=FALSE,row.names=FALSE)
+write.table(sep=',',t(Aeq),m('Aeq.csv'),col.names=FALSE,row.names=FALSE)
+write.table(sep=',',Beq,m('Beq.csv'),col.names=FALSE,row.names=FALSE)
+write.table(sep=',',covar,m('Cov.csv'),col.names=FALSE,row.names=FALSE)
+write.table(sep=',',Start,m('Start.csv'),col.names=FALSE,row.names=FALSE)
 
 
 #Read the results from matlab and plot the efficient frontier
-covar=read.csv('Cov.csv',header=FALSE)
 std=rep(0,nrow(covar))
 for(i in 1:nrow(covar))
 	std[i]=sqrt(covar[i,i])
-returns=-as.vector(read.csv('A.csv',header=FALSE)[1,])
 plot(std,returns,col='blue',xlim=c(0,1))
-riskreward=read.csv('results.csv',header=FALSE)
+riskreward=read.csv(i('results.csv'),header=FALSE)
 risk=unlist(riskreward[1])
 reward=unlist(riskreward[2])
 points(risk,reward,col='red')
@@ -108,7 +114,7 @@ points(risk,reward,col='red')
 #Number of rows should equal num stocks
 #Number of columns should be equal to number of returns / rTimeInHoldout
 rTimeInHoldout=nrow(holdoutReturnsMatrix)
-whatToPurchase=data.matrix(read.csv(header=FALSE,'optimalSolution.csv'))
+whatToPurchase=data.matrix(read.csv(header=FALSE,i('optimalSolution.csv')))
 combPortfolio=holdoutReturnsMatrix%*%whatToPurchase
 numReturns=nrow(combPortfolio)
 index=1:numReturns
